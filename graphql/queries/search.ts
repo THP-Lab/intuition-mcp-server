@@ -72,6 +72,7 @@ export const SEARCH_LISTS = gql`
       limit: 20
       order_by: { claim_count: desc }
     ) {
+      id
       claim_count
       triple_count
       object {

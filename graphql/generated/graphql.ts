@@ -8954,7 +8954,7 @@ export type SearchListsQueryVariables = Exact<{
 }>;
 
 
-export type SearchListsQuery = { predicate_objects: Array<{ claim_count: number, triple_count: number, object: { label?: string | null, id: string } }> };
+export type SearchListsQuery = { predicate_objects: Array<{ id: string, claim_count: number, triple_count: number, object: { label?: string | null, id: string } }> };
 
 
 export const GetAccountInfoDocument = gql`
@@ -9261,6 +9261,7 @@ export const SearchListsDocument = gql`
     limit: 20
     order_by: {claim_count: desc}
   ) {
+    id
     claim_count
     triple_count
     object {
