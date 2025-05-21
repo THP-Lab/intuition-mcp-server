@@ -1,8 +1,12 @@
 Intuition MCP Server
 
-The Intuition MCP Server is an HTTP stream server designed to interact with the Intuition knowledge graph, enabling users to query and manage data through a set of powerful tools. It provides a robust API for extracting triples, searching for entities (atoms), retrieving account information, and exploring relationships such as followers and following. This README outlines the available tools, their functionalities, and instructions for running a client to interact with the server using the Model Context Protocol (MCP) SDK.
+The Intuition MCP Server is an HTTP stream server designed to interact with the Intuition knowledge graph, enabling users to query and manage data through a set of powerful tools. It provides a robust API for extracting triples, searching for entities (atoms), retrieving account information, and exploring relationships such as followers and following. This README outlines the steps to get started, the available tools, their functionalities, and instructions for running a client using the Model Context Protocol (MCP) SDK.
 
 Table of Contents
+
+Get Started (#get-started)
+
+
 
 Overview (#overview)
 
@@ -60,6 +64,49 @@ Contributing (#contributing)
 
 License (#license)
 
+
+Get Started
+
+To run the Intuition MCP Server locally, follow these steps:
+
+Clone the Repository:
+Clone the project repository to your local machine:
+
+bash
+
+
+git clone <repository-url>
+cd intuition-mcp-server
+
+
+Install Dependencies:
+Install the required dependencies using pnpm:
+
+bash
+
+
+pnpm install
+
+
+Start the Server:
+Launch the server using the HTTP transport:
+
+bash
+
+
+pnpm run start:http
+
+
+
+This will start the Intuition MCP Server, making it available at the configured host and port (e.g., http://localhost:3000). Check the server configuration for the exact URL.
+
+
+
+Verify the Server:
+Once the server is running, you can test it by sending a request to the /mcp endpoint (for Streamable HTTP clients) or /sse endpoint (for legacy SSE clients). See the Running a Client (#running-a-client) section for details on connecting a client.
+
+
+Note: Ensure you have pnpm installed globally (npm install -g pnpm) before running the above commands. If you encounter issues, verify that your Node.js version is 14 or higher.
 
 Overview
 
@@ -508,5 +555,7 @@ Open a pull request.
 
 Please ensure your code follows the project's coding standards and includes tests.
 
+License
 
+The Intuition MCP Server is licensed under the MIT License (LICENSE). See the LICENSE file for details.
 
