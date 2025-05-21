@@ -1,105 +1,58 @@
-Intuition MCP Server
+# Intuition MCP Server
 
 The Intuition MCP Server is an HTTP stream server designed to interact with the Intuition knowledge graph, enabling users to query and manage data through a set of powerful tools. It provides a robust API for extracting triples, searching for entities (atoms), retrieving account information, and exploring relationships such as followers and following. This README outlines the steps to get started, the available tools, their functionalities, and instructions for running a client using the Model Context Protocol (MCP) SDK.
 
-Table of Contents
-
-Get Started (#get-started)
+# Table of Contents
 
 
-
-Overview (#overview)
-
-
-
-Tools (#tools)
-
-extract_triples (#extract_triples)
-
-
-
-search_atoms (#search_atoms)
-
-
-
-get_account_info (#get_account_info)
-
-
-
-search_lists (#search_lists)
+## Table of Contents
+- [Get Started](#get-started)
+- [Overview](#overview)
+- [Tools](#tools)
+  - [extract_triples](#extract_triples)
+  - [search_atoms](#search_atoms)
+  - [get_account_info](#get_account_info)
+  - [search_lists](#search_lists)
+  - [get_following](#get_following)
+  - [get_followers](#get_followers)
+  - [search_account_ids](#search_account_ids)
+- [Running a Client](#running-a-client)
+  - [Prerequisites](#prerequisites)
+  - [Installation](#installation)
+  - [Example Client Setup](#example-client-setup)
+  - [Making API Requests](#making-api-requests)
+- [Contributing](#contributing)
+- [License](#license)
 
 
-
-get_following (#get_following)
-
-
-
-get_followers (#get_followers)
-
-
-
-search_account_ids (#search_account_ids)
-
-
-Running a Client (#running-a-client)
-
-Prerequisites (#prerequisites)
-
-
-
-Installation (#installation)
-
-
-
-Example Client Setup (#example-client-setup)
-
-
-
-Making API Requests (#making-api-requests)
-
-
-Contributing (#contributing)
-
-
-
-License (#license)
-
-
-Get Started
+# Get Started
 
 To run the Intuition MCP Server locally, follow these steps:
 
 Clone the Repository:
 Clone the project repository to your local machine:
 
-bash
-
-
+```bash
 git clone <repository-url>
 cd intuition-mcp-server
-
+```
 
 Install Dependencies:
 Install the required dependencies using pnpm:
 
-bash
-
-
+```bash
 pnpm install
-
+```
 
 Start the Server:
 Launch the server using the HTTP transport:
 
-bash
-
-
+```bash
 pnpm run start:http
-
+```
 
 
 This will start the Intuition MCP Server, making it available at the configured host and port (e.g., http://localhost:3000). Check the server configuration for the exact URL.
-
 
 
 Verify the Server:
@@ -108,25 +61,24 @@ Once the server is running, you can test it by sending a request to the /mcp end
 
 Note: Ensure you have pnpm installed globally (npm install -g pnpm) before running the above commands. If you encounter issues, verify that your Node.js version is 14 or higher.
 
-Overview
+# Overview
 
 The Intuition MCP Server is built to facilitate interactions with the Intuition knowledge graph, a decentralized data structure for storing and querying relationships between entities (atoms) such as accounts, concepts, and objects. The server operates as an HTTP stream server, leveraging the Model Context Protocol (MCP) to handle streaming requests and responses, making it ideal for real-time applications and large-scale data queries.
 
 The server exposes a set of tools via API endpoints, each designed for specific tasks like extracting structured data (triples), searching for entities, retrieving account details, and exploring social connections (e.g., followers or recommendations). These tools are accessible using the MCP SDK, which supports both modern Streamable HTTP and legacy Server-Sent Events (SSE) transports for client-server communication.
 
-Tools
+## Tools
 
 The Intuition MCP Server provides the following tools, each with a specific purpose and input schema. All tools return responses sorted by relevance (e.g., position descending) and include detailed information, such as atom IDs and connections, to ensure comprehensive results.
 
-extract_triples
+### extract_triples
 
 Description: Extracts triples (subject-predicate-object) from user input text, enabling structured data extraction from natural language.
 
 
-
 Input Schema:
 
-json
+```json
 
 
 {
@@ -140,18 +92,18 @@ json
   "required": ["input"],
   "additionalProperties": false
 }
-
+```
 
 Example:
 
-Input: {"input": "Alice knows Bob"}
+Input: `{"input": "Alice knows Bob"}`
 
 
 
 Usage: Extract structured triples like (Alice, knows, Bob).
 
 
-search_atoms
+### search_atoms
 
 Description: Searches for entities (accounts, things, people, concepts) by name, description, URL, or ENS domain (e.g., john.eth). Supports synonyms and keyword breakdown for flexible querying.
 
@@ -159,7 +111,7 @@ Description: Searches for entities (accounts, things, people, concepts) by name,
 
 Input Schema:
 
-json
+```json
 
 
 {
@@ -174,18 +126,18 @@ json
   "required": ["queries"],
   "additionalProperties": false
 }
-
+```
 
 Example:
 
-Input: {"queries": ["ethereum", "eth"]}
+Input: `{"queries": ["ethereum", "eth"]}`
 
 
 
 Usage: Search for atoms related to Ethereum, returning at least 10 connections sorted by position, with atom IDs and detailed information.
 
 
-get_account_info
+### get_account_info
 
 Description: Retrieves detailed information about an account using its address or identifier. Falls back to search_atoms if the identifier is not a hex address.
 
@@ -193,7 +145,7 @@ Description: Retrieves detailed information about an account using its address o
 
 Input Schema:
 
-json
+```json
 
 
 {
@@ -204,18 +156,18 @@ json
   },
   "additionalProperties": false
 }
-
+```
 
 Example:
 
-Input: {"identifier": "0x1234567890123456789012345678901234567890"}
+Input: `{"identifier": "0x1234567890123456789012345678901234567890"}`
 
 
 
 Usage: Fetch account details, including at least 10 connections, sorted by position, with atom IDs.
 
 
-search_lists
+### search_lists
 
 Description: Searches for lists of entities (e.g., blockchains, crypto CEOs) by name or description, supporting complex queries broken down into simpler terms.
 
@@ -238,14 +190,14 @@ json
 
 Example:
 
-Input: {"query": "defi protocols"}
+Input: `{"query": "defi protocols"}`
 
 
 
 Usage: Retrieve a list of DeFi protocols, returning at least 10 items sorted by position, with atom IDs and details.
 
 
-get_following
+### get_following
 
 Description: Retrieves atom IDs that an account follows, optionally filtered by a predicate (e.g., follow, recommend).
 
@@ -253,7 +205,7 @@ Description: Retrieves atom IDs that an account follows, optionally filtered by 
 
 Input Schema:
 
-json
+```json
 
 
 {
@@ -265,18 +217,18 @@ json
   "required": ["account_id"],
   "additionalProperties": false
 }
-
+```
 
 Example:
 
-Input: {"account_id": "0x3e2178cf851a0e5cbf84c0ff53f820ad7ead703b", "predicate": "recommend"}
+Input: `{"account_id": "0x3e2178cf851a0e5cbf84c0ff53f820ad7ead703b", "predicate": "recommend"}`
 
 
 
 Usage: List atoms recommended by the specified account.
 
 
-get_followers
+### get_followers
 
 Description: Retrieves followers of an account, optionally filtered by a predicate (e.g., follow, recommend).
 
@@ -284,7 +236,7 @@ Description: Retrieves followers of an account, optionally filtered by a predica
 
 Input Schema:
 
-json
+```json
 
 
 {
@@ -296,18 +248,18 @@ json
   "required": ["account_id"],
   "additionalProperties": false
 }
-
+```
 
 Example:
 
-Input: {"account_id": "0x3e2178cf851a0e5cbf84c0ff53f820ad7ead703b", "predicate": "follow"}
+Input: `{"account_id": "0x3e2178cf851a0e5cbf84c0ff53f820ad7ead703b", "predicate": "follow"}`
 
 
 
 Usage: List accounts following the specified account.
 
 
-search_account_ids
+### search_account_ids
 
 Description: Searches for an account address using an identifier, typically an ENS address (e.g., intuitionbilly.eth).
 
@@ -315,7 +267,7 @@ Description: Searches for an account address using an identifier, typically an E
 
 Input Schema:
 
-json
+```json
 
 
 {
@@ -326,22 +278,22 @@ json
   "required": ["identifier"],
   "additionalProperties": false
 }
-
+```
 
 Example:
 
-Input: {"identifier": "vitalik.eth"}
+Input: `{"identifier": "vitalik.eth"}`
 
 
 
 Usage: Resolve the ENS address to its corresponding account address.
 
 
-Running a Client
+# Running a Client
 
 The Intuition MCP Server uses the Model Context Protocol (MCP) SDK for client interactions, supporting both modern Streamable HTTP and legacy Server-Sent Events (SSE) transports. Below are the steps to set up and run a client to communicate with the server.
 
-Prerequisites
+## Prerequisites
 
 Node.js (version 14 or higher).
 
@@ -358,19 +310,19 @@ Access to the server URL (e.g., http://your-mcp-server:port).
 API key (if authentication is required; check with your server administrator).
 
 
-Installation
+## Installation
 
 Set up a project:
 Create a new project directory and initialize it with Node.js:
 
-bash
+```bash
 
 
 mkdir intuition-mcp-client
 cd intuition-mcp-client
 npm init -y
 npm install @modelcontextprotocol/sdk
-
+```
 
 Install dependencies:
 The @modelcontextprotocol/sdk package includes the necessary modules for both Streamable HTTP and SSE transports.
@@ -380,7 +332,7 @@ Example Client Setup
 
 Below is an example of a Node.js client using the MCP SDK to connect to the Intuition MCP Server and interact with its tools.
 
-javascript
+```javascript
 
 
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
@@ -446,10 +398,10 @@ async function main() {
 }
 
 main().catch(console.error);
+```
 
 
-
-Making API Requests
+## Making API Requests
 
 Initialize the client:
 
@@ -495,19 +447,19 @@ Example Payloads:
 
 For search_atoms:
 
-javascript
+```javascript
 
 
 await client.callTool('search_atoms', { queries: ['blockchain'] });
-
+```
 
 For get_account_info:
 
-javascript
+```javascript
 
 
 await client.callTool('get_account_info', { identifier: '0x1234567890123456789012345678901234567890' });
-
+```
 
 Notes
 
