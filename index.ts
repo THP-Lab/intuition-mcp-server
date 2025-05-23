@@ -7,11 +7,9 @@ import {
   CallToolRequestSchema,
   ListToolsRequestSchema,
   CallToolRequest,
-  InitializeRequest,
 } from '@modelcontextprotocol/sdk/types.js';
-import { z } from 'zod';
 import { zodToJsonSchema } from 'zod-to-json-schema';
-import { performance } from 'perf_hooks';
+
 import { randomUUID } from 'node:crypto';
 
 import * as triples from './operations/triples.js';
@@ -82,26 +80,41 @@ const TOOLS = [
   },
 ] as const;
 
-// Server metrics
-interface ServerMetrics {
-  totalConnections: number;
-  activeConnections: number;
-  messageLatencies: number[];
-  lastCleanup: number;
+// Simplified session tracking
+interface Transport {
+  transport: StreamableHTTPServerTransport;
+  lastActivity: number;
+  createdAt: number;
 }
 
-const metrics: ServerMetrics = {
-  totalConnections: 0,
-  activeConnections: 0,
-  messageLatencies: [],
-  lastCleanup: Date.now(),
-};
+const transports: Record<string, Transport> = {};
 
 // Create server instance with configuration
 const SERVER_CONFIG = {
   name: 'intuition-mcp-server',
-  version: '0.0.1',
+  version: '0.1.0',
 } as const;
+
+// Request tracing middleware
+const tracingMiddleware = (req: Request, res: Response, next: Function) => {
+  const requestId = randomUUID();
+  const cfRay = req.headers['cf-ray'] as string;
+
+  // Add Render tracing headers (or for any other host provider)
+  res.setHeader('Rndr-Id', requestId);
+
+  // Attach to request for logging
+  (req as any).tracingInfo = {
+    requestId,
+    cfRay,
+    startTime: Date.now(),
+  };
+
+  console.log(
+    `[Request Start] ID: ${requestId} CF-Ray: ${cfRay} Session: ${req.headers['mcp-session-id']}`
+  );
+  next();
+};
 
 const server = new Server(SERVER_CONFIG, {
   capabilities: {
@@ -110,6 +123,9 @@ const server = new Server(SERVER_CONFIG, {
       search_atoms: true,
       get_account_info: true,
       search_lists: true,
+      get_following: true,
+      get_followers: true,
+      search_account_ids: true,
     },
   },
 });
@@ -220,9 +236,6 @@ async function runHttpServer() {
   const port = process.env.PORT || 3001;
   app.use(express.json());
 
-  // Store transports by session ID
-  const transports: { [sessionId: string]: StreamableHTTPServerTransport } = {};
-
   // Basic request logging
   app.use((req: Request, res: Response, next) => {
     debug(`${req.method} ${req.path}`);
@@ -231,107 +244,89 @@ async function runHttpServer() {
 
   // Health check endpoint
   app.get('/health', (_req: Request, res: Response) => {
-    const recentLatencies = metrics.messageLatencies.slice(-100);
-    const avgLatency =
-      recentLatencies.length > 0
-        ? recentLatencies.reduce((a, b) => a + b, 0) / recentLatencies.length
-        : 0;
-
-    res.json({
+    res.status(200).json({
       status: 'ok',
       version: SERVER_CONFIG.version,
       name: SERVER_CONFIG.name,
-      metrics: {
-        activeConnections: metrics.activeConnections,
-        totalConnections: metrics.totalConnections,
-        averageLatencyMs: Math.round(avgLatency),
-        timeSinceLastCleanup: Date.now() - metrics.lastCleanup,
-      },
     });
   });
 
   // Modern Streamable HTTP endpoint
-  app.post('/mcp', async (req: Request, res: Response) => {
-    const startTime = performance.now();
+  app.post('/mcp', tracingMiddleware, async (req: Request, res: Response) => {
     const sessionId = req.headers['mcp-session-id'] as string | undefined;
-    let transport: StreamableHTTPServerTransport;
+    const { requestId, cfRay } = (req as any).tracingInfo;
 
     try {
-      if (sessionId && transports[sessionId]) {
-        // Reuse existing transport
-        transport = transports[sessionId];
-      } else if (!sessionId && req.body && req.body.method === 'initialize') {
+      // Log instance routing information
+      console.log(
+        `[Request Routing]`,
+        `Session: ${sessionId}`,
+        `CF-Ray: ${cfRay}`
+      );
+
+      if (!sessionId) {
         // New initialization request
-        transport = new StreamableHTTPServerTransport({
+        const transport = new StreamableHTTPServerTransport({
           sessionIdGenerator: () => randomUUID(),
           onsessioninitialized: (sessionId) => {
-            debug('New session initialized:', sessionId);
-            metrics.totalConnections++;
-            metrics.activeConnections++;
-            transports[sessionId] = transport;
+            console.log(
+              `[Session Init] ID: ${sessionId} RequestID: ${requestId} CF-Ray: ${cfRay}`
+            );
+            transports[sessionId] = {
+              transport,
+              lastActivity: Date.now(),
+              createdAt: Date.now(),
+            };
           },
         });
 
-        // Clean up transport when closed
-        transport.onclose = () => {
-          if (transport.sessionId) {
-            debug(`Session closed: ${transport.sessionId}`);
-            metrics.activeConnections--;
-            delete transports[transport.sessionId];
-          }
-        };
-
         await server.connect(transport);
-      } else {
-        // Invalid request
-        res.status(400).json({
+        await transport.handleRequest(req, res, req.body);
+        return;
+      }
+
+      // Existing session
+      const session = transports[sessionId];
+      if (!session) {
+        res.status(401).json({
           jsonrpc: '2.0',
           error: {
-            code: -32000,
-            message: 'Bad Request: No valid session ID provided',
+            code: -32001,
+            message: 'Invalid session, please reinitialize',
           },
           id: null,
         });
         return;
       }
 
-      // Handle the request
-      await transport.handleRequest(req, res, req.body);
-
-      // Record latency
-      const latency = performance.now() - startTime;
-      metrics.messageLatencies.push(latency);
-      if (metrics.messageLatencies.length > 1000) {
-        metrics.messageLatencies.shift();
-      }
+      // Update session activity
+      session.lastActivity = Date.now();
+      await session.transport.handleRequest(req, res, req.body);
     } catch (error) {
-      debug('Error handling streamable HTTP connection:', error);
+      console.error('[Request Error]', error);
       if (!res.writableEnded) {
         res.status(500).json({
           error: 'Failed to handle connection',
           details: error instanceof Error ? error.message : 'Unknown error',
+          requestId,
         });
       }
     }
   });
 
-  // Reusable handler for GET and DELETE requests
-  const handleSessionRequest = async (req: Request, res: Response) => {
-    const sessionId = req.headers['mcp-session-id'] as string | undefined;
-    if (!sessionId || !transports[sessionId]) {
-      res.status(400).send('Invalid or missing session ID');
-      return;
+  // Handle session cleanup on DELETE
+  app.delete('/mcp', async (req: Request, res: Response) => {
+    const sessionId = req.headers['mcp-session-id'] as string;
+    if (sessionId && transports[sessionId]) {
+      const transport = transports[sessionId];
+      try {
+        await transport.transport.close();
+      } finally {
+        delete transports[sessionId];
+      }
     }
-
-    const transport = transports[sessionId];
-    await transport.handleRequest(req, res);
-  };
-
-  // Handle GET requests for server-to-client notifications
-  app.get('/mcp', handleSessionRequest);
-
-  // Handle DELETE requests for session termination
-  app.delete('/mcp', handleSessionRequest);
+    res.status(200).send('Session terminated');
+  });
 
   // Error handling middleware
   app.use((err: Error, req: Request, res: Response, next: Function) => {
