@@ -9,18 +9,15 @@ import {
   CallToolRequest,
 } from '@modelcontextprotocol/sdk/types.js';
 import { zodToJsonSchema } from 'zod-to-json-schema';
-
 import { randomUUID } from 'node:crypto';
-
 import * as triples from './operations/triples.js';
 import { atomSearchOperation } from './operations/search-atoms.js';
 import { getAccountInfoOperation } from './operations/get-account-info.js';
 import { searchListsOperation } from './operations/search-lists.js';
-
 import { getFollowingOperation } from './operations/get-following.js';
 import { getFollowersOperation } from './operations/get-followers.js';
-
 import { searchAccountIdsOperation } from './operations/search-account-ids.js';
+import { SSEServerTransport } from '@modelcontextprotocol/sdk/server/sse.js';
 
 import { getOutgoingEdgesOperation } from "./operations/get-outgoing-edges.js";
 
@@ -87,14 +84,11 @@ const TOOLS = [
   },
 ] as const;
 
-// Simplified session tracking
-interface Transport {
-  transport: StreamableHTTPServerTransport;
-  lastActivity: number;
-  createdAt: number;
-}
-
-const transports: Record<string, Transport> = {};
+// Store transports for each session type
+const transports = {
+  streamable: {} as Record<string, StreamableHTTPServerTransport>,
+  sse: {} as Record<string, SSEServerTransport>,
+};
 
 // Create server instance with configuration
 const SERVER_CONFIG = {
@@ -249,12 +243,6 @@ async function runHttpServer() {
   const port = process.env.PORT || 3001;
   app.use(express.json());
 
-  // Basic request logging
-  app.use((req: Request, res: Response, next) => {
-    debug(`${req.method} ${req.path}`);
-    next();
-  });
-
   // Health check endpoint
   app.get('/health', (_req: Request, res: Response) => {
     res.status(200).json({
@@ -265,42 +253,24 @@ async function runHttpServer() {
   });
 
   // Modern Streamable HTTP endpoint
-  app.post('/mcp', tracingMiddleware, async (req: Request, res: Response) => {
+  app.all('/mcp', async (req, res) => {
     const sessionId = req.headers['mcp-session-id'] as string | undefined;
-    const { requestId, cfRay } = (req as any).tracingInfo;
 
     try {
-      // Log instance routing information
-      console.log(
-        `[Request Routing]`,
-        `Session: ${sessionId}`,
-        `CF-Ray: ${cfRay}`
-      );
-
       if (!sessionId) {
-        // New initialization request
         const transport = new StreamableHTTPServerTransport({
           sessionIdGenerator: () => randomUUID(),
-          onsessioninitialized: (sessionId) => {
-            console.log(
-              `[Session Init] ID: ${sessionId} RequestID: ${requestId} CF-Ray: ${cfRay}`
-            );
-            transports[sessionId] = {
-              transport,
-              lastActivity: Date.now(),
-              createdAt: Date.now(),
-            };
-          },
         });
-
-        await server.connect(transport);
-        await transport.handleRequest(req, res, req.body);
+        if (transport.sessionId) {
+          transports.streamable[transport.sessionId] = transport;
+          await server.connect(transport);
+          await transport.handleRequest(req, res, req.body);
+        }
         return;
       }
 
-      // Existing session
-      const session = transports[sessionId];
-      if (!session) {
+      const transport = transports.streamable[sessionId];
+      if (!transport) {
         res.status(401).json({
           jsonrpc: '2.0',
           error: {
@@ -312,56 +282,56 @@ async function runHttpServer() {
         return;
       }
 
-      // Update session activity
-      session.lastActivity = Date.now();
-      await session.transport.handleRequest(req, res, req.body);
+      await transport.handleRequest(req, res, req.body);
     } catch (error) {
-      console.error('[Request Error]', error);
+      console.error('[Error]', error);
       if (!res.writableEnded) {
         res.status(500).json({
           error: 'Failed to handle connection',
           details: error instanceof Error ? error.message : 'Unknown error',
-          requestId,
         });
       }
     }
   });
 
-  // Handle session cleanup on DELETE
-  app.delete('/mcp', async (req: Request, res: Response) => {
-    const sessionId = req.headers['mcp-session-id'] as string;
-    if (sessionId && transports[sessionId]) {
-      const transport = transports[sessionId];
-      try {
-        await transport.transport.close();
-      } finally {
-        delete transports[sessionId];
-      }
-    }
-    res.status(200).send('Session terminated');
+  // Legacy SSE endpoint for older clients
+  app.get('/sse', async (req, res) => {
+    const transport = new SSEServerTransport('/messages', res);
+    transports.sse[transport.sessionId] = transport;
+
+    res.on('close', () => {
+      delete transports.sse[transport.sessionId];
+    });
+
+    await server.connect(transport);
   });
 
-  // Error handling middleware
-  app.use((err: Error, req: Request, res: Response, next: Function) => {
-    debug('Server error:', err);
-    res.status(500).json({ error: 'Internal server error' });
+  // Legacy message endpoint for older clients
+  app.post('/messages', async (req, res) => {
+    const sessionId = req.query.sessionId as string;
+    const transport = transports.sse[sessionId];
+    if (transport) {
+      await transport.handlePostMessage(req, res, req.body);
+    } else {
+      res.status(400).send('No transport found for sessionId');
+    }
   });
 
   const httpServer = app.listen(port, () => {
-    debug(`HTTP server listening on port ${port}`);
+    console.log(`Server listening on port ${port}`);
   });
 
   // Graceful shutdown
   process.on('SIGTERM', () => {
-    debug('SIGTERM received, shutting down gracefully');
+    console.log('SIGTERM received, shutting down gracefully');
     httpServer.close(() => {
-      debug('Server closed');
+      console.log('Server closed');
       process.exit(0);
     });
 
     // Force close after 10s
     setTimeout(() => {
-      debug('Forcing server shutdown');
+      console.log('Forcing server shutdown');
       process.exit(1);
     }, 10000);
   });
