@@ -22,6 +22,8 @@ import { getFollowersOperation } from './operations/get-followers.js';
 
 import { searchAccountIdsOperation } from './operations/search-account-ids.js';
 
+import { getOutgoingEdgesOperation } from "./operations/get-outgoing-edges.js";
+
 // Configure global error handlers with detailed logging
 process.on('uncaughtException', (error) => {
   console.error('\n=== Uncaught Exception ===');
@@ -72,6 +74,11 @@ const TOOLS = [
     name: 'get_followers',
     description: getFollowersOperation.description,
     inputSchema: zodToJsonSchema(getFollowersOperation.parameters),
+  },
+  {
+    name: "get_outgoing_edges",
+    description: getOutgoingEdgesOperation.description,
+    inputSchema: zodToJsonSchema(getOutgoingEdgesOperation.parameters),
   },
   {
     name: 'search_account_ids',
@@ -203,6 +210,12 @@ server.setRequestHandler(
             request.params.arguments
           );
           return await searchAccountIdsOperation.execute(args);
+        }
+        case "get_outgoing_edges": {
+          const args = getOutgoingEdgesOperation.parameters.parse(
+            request.params.arguments,
+          );
+          return await getOutgoingEdgesOperation.execute(args);
         }
         default:
           throw new Error(`Unknown tool: ${request.params.name}`);
