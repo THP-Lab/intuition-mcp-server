@@ -18,8 +18,10 @@ import { getFollowingOperation } from './operations/get-following.js';
 import { getFollowersOperation } from './operations/get-followers.js';
 import { searchAccountIdsOperation } from './operations/search-account-ids.js';
 import { SSEServerTransport } from '@modelcontextprotocol/sdk/server/sse.js';
-
+import { getTriplesByIdsOperation } from './operations/get-triples-by-id.js';
 import { getOutgoingEdgesOperation } from "./operations/get-outgoing-edges.js";
+import { getTriplesWithPositionsOperation } from './operations/get-triples-with-positions.js';
+
 
 // Configure global error handlers with detailed logging
 process.on('uncaughtException', (error) => {
@@ -82,6 +84,16 @@ const TOOLS = [
     description: searchAccountIdsOperation.description,
     inputSchema: zodToJsonSchema(searchAccountIdsOperation.parameters),
   },
+  {
+    name: 'get_triples_by_ids',
+    description: getTriplesByIdsOperation.description,
+    inputSchema: zodToJsonSchema(getTriplesByIdsOperation.parameters),
+  },
+  {
+  name: 'get_triples_with_positions',
+  description: getTriplesWithPositionsOperation.description,
+  inputSchema: zodToJsonSchema(getTriplesWithPositionsOperation.parameters),
+  },
 ] as const;
 
 // Store transports for each session type
@@ -127,6 +139,8 @@ const server = new Server(SERVER_CONFIG, {
       get_following: true,
       get_followers: true,
       search_account_ids: true,
+      get_triples_by_ids: true,
+      get_triples_with_positions: true,
     },
   },
 });
@@ -210,6 +224,18 @@ server.setRequestHandler(
             request.params.arguments,
           );
           return await getOutgoingEdgesOperation.execute(args);
+        }
+        case 'get_triples_by_ids': {
+          const args = getTriplesByIdsOperation.parameters.parse(
+            request.params.arguments
+          );
+          return await getTriplesByIdsOperation.execute(args);
+        }
+        case 'get_triples_with_positions': {
+          const args = getTriplesWithPositionsOperation.parameters.parse(
+            request.params.arguments
+          );
+          return await getTriplesWithPositionsOperation.execute(args);
         }
         default:
           throw new Error(`Unknown tool: ${request.params.name}`);
