@@ -21,6 +21,7 @@ import { SSEServerTransport } from '@modelcontextprotocol/sdk/server/sse.js';
 import { getTriplesByIdsOperation } from './operations/get-triples-by-id.js';
 import { getOutgoingEdgesOperation } from "./operations/get-outgoing-edges.js";
 import { getTriplesWithPositionsOperation } from './operations/get-triples-with-positions.js';
+import { getTriplesWithPositionsByAddressOperation } from './operations/get-user-personnality.js';
 
 
 // Configure global error handlers with detailed logging
@@ -94,6 +95,11 @@ const TOOLS = [
   description: getTriplesWithPositionsOperation.description,
   inputSchema: zodToJsonSchema(getTriplesWithPositionsOperation.parameters),
   },
+  {
+  name: 'get_user_personnality',
+  description: getTriplesWithPositionsByAddressOperation.description,
+  inputSchema: zodToJsonSchema(getTriplesWithPositionsByAddressOperation.parameters),
+  },
 ] as const;
 
 // Store transports for each session type
@@ -141,6 +147,7 @@ const server = new Server(SERVER_CONFIG, {
       search_account_ids: true,
       get_triples_by_ids: true,
       get_triples_with_positions: true,
+      get_user_personnality: true,
     },
   },
 });
@@ -237,6 +244,11 @@ server.setRequestHandler(
           );
           return await getTriplesWithPositionsOperation.execute(args);
         }
+        case 'get_user_personnality': {
+          const args = getTriplesWithPositionsByAddressOperation.parameters.parse(request.params.arguments);
+          return await getTriplesWithPositionsByAddressOperation.execute(args);
+        }
+
         default:
           throw new Error(`Unknown tool: ${request.params.name}`);
       }
